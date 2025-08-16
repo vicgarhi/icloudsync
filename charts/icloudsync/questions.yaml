@@ -1,0 +1,60 @@
+questions:
+  - variable: image.repository
+    label: Image Repository
+    group: Container Image
+    schema:
+      type: string
+      default: ghcr.io/vicgarhi/icloudsync
+
+  - variable: image.tag
+    label: Image Tag
+    group: Container Image
+    schema:
+      type: string
+      default: latest
+
+  - variable: schedule
+    label: Cron Schedule
+    group: Scheduling
+    schema:
+      type: string
+      default: "0 3 * * *"
+
+  - variable: env.TZ
+    label: Timezone (TZ)
+    group: Environment
+    schema:
+      type: string
+      default: Europe/Madrid
+
+  - variable: env.APPLE_ID
+    label: Apple ID (email)
+    group: Environment
+    schema:
+      type: string
+      default: ""
+
+  - variable: paths.data
+    label: Data path (host)
+    group: Storage
+    schema:
+      type: hostpath
+      required: true
+      default: /mnt/Data_1/icloud_fotos
+
+  - variable: paths.cookies
+    label: Cookies path (host)
+    group: Storage
+    schema:
+      type: hostpath
+      required: true
+      default: /mnt/Data_1/icloud_fotos/cookies
+
+  - variable: paths.logs
+    label: Logs path (host)
+    group: Storage
+    schema:
+      type: hostpath
+      required: true
+      default: /mnt/Data_1/icloud_fotos/logs
+

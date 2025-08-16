@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "icloudsync.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "icloudsync.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion }}
+spec:
+  schedule: {{ .Values.schedule | quote }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: icloudsync
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: TZ
+                  value: {{ .Values.env.TZ | quote }}
+                - name: APPLE_ID
+                  value: {{ .Values.env.APPLE_ID | quote }}
+              command: ["/usr/local/bin/run_all.sh"]
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: cookies
+                  mountPath: /cookies
+                - name: logs
+                  mountPath: /logs
+          volumes:
+            - name: data
+              hostPath:
+                path: {{ .Values.paths.data | quote }}
+                type: DirectoryOrCreate
+            - name: cookies
+              hostPath:
+                path: {{ .Values.paths.cookies | quote }}
+                type: DirectoryOrCreate
+            - name: logs
+              hostPath:
+                path: {{ .Values.paths.logs | quote }}
+                type: DirectoryOrCreate
+

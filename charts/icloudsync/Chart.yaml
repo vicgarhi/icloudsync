@@ -1,0 +1,7 @@
+apiVersion: v2
+name: icloudsync
+description: TrueNAS SCALE app to sync iCloud Photos to storage via CronJob
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+

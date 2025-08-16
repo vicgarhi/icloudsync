@@ -62,3 +62,13 @@ Cron (TrueNAS)
     ghcr.io/vicgarhi/icloudsync:latest
 
   Esto creará `/data/Compartidos` y `/data/Albums` si no existen y volcará el log en `/logs/icloud_all.log`.
+
+App para TrueNAS SCALE (Helm Chart)
+- Se incluye un chart en `charts/icloudsync` que despliega un CronJob con el wrapper `run_all.sh`.
+- Campos configurables: imagen (`ghcr.io/vicgarhi/icloudsync`), `schedule` (cron), `TZ`, `APPLE_ID`, y rutas host (`data`, `cookies`, `logs`).
+- Instalación (opción A: catálogo propio):
+  - En TrueNAS: Apps → Manage Catalogs → Add Catalog.
+  - Apunta a este repo y selecciona el chart `icloudsync`. Ajusta las rutas a tus datasets y el horario.
+- Instalación (opción B: YAML local):
+  - Renderiza el chart con Helm o Kustomize y aplica el manifiesto en el cluster de SCALE.
+  - Requisitos: las cookies deben existir previamente en la ruta indicada (ejecuta `auth` con un contenedor temporal fuera del cron).

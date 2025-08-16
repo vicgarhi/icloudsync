@@ -1,0 +1,17 @@
+image:
+  repository: ghcr.io/vicgarhi/icloudsync
+  tag: latest
+
+schedule: "0 3 * * *"  # 03:00 todos los días
+
+env:
+  TZ: Europe/Madrid
+  APPLE_ID: ""
+
+paths:
+  data: "/mnt/Data_1/icloud_fotos"
+  cookies: "/mnt/Data_1/icloud_fotos/cookies"
+  logs: "/mnt/Data_1/icloud_fotos/logs"
+
+resources: {}
+
