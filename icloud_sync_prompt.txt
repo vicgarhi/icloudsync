@@ -1,0 +1,256 @@
+genial — aquí tienes un prompt súper detallado para pegar en tu
+herramienta de vibe Coding y que te genere “el programa” que sincronice
+toda tu iCloud (fototeca completa, álbumes normales y álbumes
+compartidos) en TrueNAS Scale, con Docker y listo para cron.
+
+------------------------------------------------------------------------
+
+Prompt para generar el proyecto
+
+Quiero un proyecto de sincronización de iCloud Photos para Linux
+(TrueNAS Scale) con Docker, escrito en Python 3.11, que descargue:
+
+1)  Fototeca completa (todas las fotos y vídeos, incluyendo álbumes
+    “normales”).
+2)  Álbumes compartidos (shared albums / shared streams) en carpetas
+    separadas por álbum.
+
+Objetivo funcional
+
+-   Descarga incremental (idempotente): solo baja lo nuevo o lo que
+    falte.
+-   Archivos originales (full-res), conservando EXIF/fecha.
+-   Estructura de carpetas:
+    -   Fototeca: icloud_fotos/{YYYY}/{MM}/...
+    -   Compartidos:
+        icloud_fotos/Compartidos/{Nombre del Álbum}/{YYYY}/{MM}/...
+-   Compatible con SMB (permisos y timestamps correctos).
+-   Sin interacción salvo cuando caduque 2FA (cookies de sesión
+    persistidas).
+
+Alcance y enfoque técnico
+
+-   Lenguaje: Python 3.11.
+-   Librerías:
+    -   Para fototeca principal: usar icloudpd (proyecto
+        icloud-photos-downloader) como módulo si es sencillo o, si no,
+        replicar su lógica mínima con pyicloud-ipd.
+    -   Para álbumes compartidos: usar pyicloud-ipd (API no cubierta por
+        icloudpd de forma estable).
+-   Ejecutable CLI único con subcomandos:
+    -   sync library → fototeca completa
+    -   sync shared → álbumes compartidos
+    -   sync all → ambos en orden inteligente (primero library, luego
+        shared)
+    -   auth → flujo de autenticación para iniciar/renovar cookies
+        (muestra dispositivos 2FA si hace falta, acepta código, guarda
+        cookies)
+    -   list-albums → lista álbumes; flag --shared-only para solo
+        compartidos
+
+Autenticación y cookies (clave)
+
+-   Guardar cookies en una ruta mapeable (p.ej. /cookies) para persistir
+    la sesión y evitar pedir el 2FA en cada ejecución.
+-   Subcomando auth:
+    -   Si pyicloud_ipd.PyiCloudService(...).requires_2fa es True,
+        mostrar lista de dispositivos o pedir código 2FA por consola
+        (stdin).
+    -   Tras éxito, persistir cookies y marcar el trust (si es posible)
+        para ejecución no interactiva posterior.
+    -   Devolver código 0 si la sesión queda lista; código ≠0 si no.
+-   En modo no interactivo (cron), si faltan cookies válidas, abortar
+    con un mensaje claro para el log.
+
+Configuración
+
+-   Aceptar config por .env y/o archivo YAML:
+    -   APPLE_ID (email)
+    -   TIMEZONE (p.ej. Europe/Madrid)
+    -   Rutas:
+        -   OUT_MAIN (fototeca), por defecto /data
+        -   OUT_SHARED (compartidos), por defecto /data/Compartidos
+        -   COOKIES_DIR (/cookies)
+        -   LOG_FILE (/logs/icloud_sync.log)
+    -   Opciones:
+        -   FOLDER_TEMPLATE_LIBRARY="{:%Y/%m}"
+        -   FOLDER_TEMPLATE_SHARED="{album}/{:%Y/%m}"
+        -   RECENT=N (opcional para acotar a últimos N ítems)
+        -   CONCURRENCY (descargas paralelas razonables)
+        -   RETRY_MAX, RETRY_BACKOFF
+        -   UMASK=002 para SMB (permisos grupo)
+-   Precedencia: CLI > env > YAML > defaults.
+
+Lógica de descarga
+
+-   Fototeca:
+    -   Si usas icloudpd como módulo:
+        -   Tamaño original siempre.
+        -   Respetar FOLDER_TEMPLATE_LIBRARY.
+        -   Mantener EXIF date, o ajustar mtime del archivo a EXIF
+            DateTimeOriginal.
+        -   Saltar si ya existe archivo (mismo nombre y tamaño) o
+            validar con un hash cache (archivo .state/db local).
+    -   Si implementas con pyicloud-ipd:
+        -   Enumerar assets de api.photos.albums['All Photos'] o
+            equivalente (o “Recents” vs “All” según API).
+        -   Generar ruta determinista usando created/added_date →
+            YYYY/MM.
+        -   Nombre de fichero: {asset.id}.{ext} (o
+            {created:%Y%m%d_%H%M%S}_{id}.{ext}) para evitar colisiones.
+        -   Descargar via stream, escritura atómica a *.part y luego
+            rename.
+-   Álbumes compartidos:
+    -   Enumerar shared albums con pyicloud-ipd:
+        -   Dependiendo de versión: api.photos.shared_albums o iterar
+            api.photos.albums filtrando is_shared.
+    -   Por cada álbum:
+        -   Carpeta base: OUT_SHARED / sanitize(album_name) / YYYY / MM
+        -   Descargar ítems como arriba (atómico, incremental,
+            EXIF/mtime).
+-   Incrementalidad / estado:
+    -   Mantén un cache local (sqlite o json) con
+        asset_id → filepath, checksum opcional, last_seen.
+    -   Si el fichero existe y coincide (tamaño/mtime/hash), no volver a
+        bajar.
+-   Errores/Rate limits:
+    -   Retries exponenciales en errores 5xx o de red.
+    -   Si Apple rate-limita, pausar con backoff y continuar.
+    -   Salida con códigos de retorno coherentes.
+
+Logging y observabilidad
+
+-   Logging a LOG_FILE y a stdout (según flags), con rotación simple
+    (p.ej. max 10MB x 5 ficheros).
+-   Niveles: INFO/DEBUG/WARN/ERROR.
+-   Resumen final: totales escaneados, descargados nuevos, omitidos,
+    errores.
+-   Añadir --log-level y --no-log-file si se desea.
+
+Permisos y compatibilidad SMB
+
+-   Umask 002 para que los archivos salgan 664 y dir 775.
+-   Opción --chown UID:GID (si se ejecuta como root dentro del
+    contenedor) para fijar owner/grupo.
+-   Tras cada sync, aplicar chmod -R u=rwX,g=rwX,o=rX y (opcional)
+    chown -R UID:GID en el árbol destino (solo cuando sea necesario).
+
+CLI detallado (argparse/typer)
+
+-   icloudsync auth
+    -   Opciones: --apple-id, --cookies /cookies, --interactive
+-   icloudsync sync library
+    -   --out /data, --cookies /cookies, --recent N, --concurrency N,
+        --folder-template "{:%Y/%m}"
+-   icloudsync sync shared
+    -   --out /data/Compartidos, --cookies /cookies, --recent N,
+        --folder-template "{album}/{:%Y/%m}"
+    -   --include "regex" / --exclude "regex" (álbumes a
+        incluir/excluir)
+-   icloudsync sync all (ejecuta library y luego shared)
+-   icloudsync list-albums [--shared-only]
+-   icloudsync doctor (diagnóstico: cookies válidas, permisos de rutas,
+    espacio en disco, reloj/TZ)
+
+Docker
+
+-   Dockerfile (multi-stage opcional) basado en python:3.11-slim:
+
+    -   Instalar: git, ca-certificates, tzdata.
+    -   pip install de pyicloud-ipd, requests, tqdm, click/typer,
+        python-dateutil, piexif, pytz, tenacity (reintentos), loguru o
+        logging.
+    -   ENV PYTHONUNBUFFERED=1, ENV TZ por arg.
+    -   USER no root si es posible.
+    -   Entrypoint: icloudsync.
+
+-   docker-compose.yml de ejemplo:
+
+        services:
+          icloudsync:
+            image: icloudsync:latest
+            container_name: icloudsync
+            environment:
+              - TZ=Europe/Madrid
+            volumes:
+              - /mnt/Data_1/icloud_fotos:/data
+              - /mnt/Data_1/icloud_fotos/Compartidos:/shared
+              - /mnt/Data_1/icloud_fotos/cookies:/cookies
+              - /mnt/Data_1/icloud_fotos/logs:/logs
+            command: ["sync", "all", "--out", "/data", "--cookies", "/cookies"]
+            restart: "no"
+
+    (Si prefieres un único OUT, que shared sea subcarpeta de
+    /data/Compartidos.)
+
+Integración con cron (TrueNAS)
+
+-   Proveer un shell wrapper run_all.sh:
+
+        #!/bin/sh
+        set -e
+        umask 002
+        export TZ=Europe/Madrid
+        /usr/local/bin/icloudsync sync all     --out /data     --cookies /cookies     --folder-template "{:%Y/%m}"     --shared-folder-template "{album}/{:%Y/%m}"     >> /logs/icloud_all.log 2>&1
+
+-   En TrueNAS, el Job de cron ejecutará el contenedor (o docker exec a
+    un contenedor residente) y volcará al log.
+
+Seguridad
+
+-   No guardar la contraseña en texto plano. El flujo normal:
+    1.  Ejecutar icloudsync auth manualmente (una vez) para generar
+        cookies.
+    2.  A partir de ahí, sync no interactivo hasta que caduque 2FA.
+-   Evitar imprimir credenciales en logs.
+-   Permisos de /cookies y /logs restringidos al usuario del servicio.
+
+Tests / QA
+
+-   Tests unitarios “falsos” de mapeo de rutas/plantillas y
+    deduplicación.
+-   Test de interrupción/reintento (simular error temporal).
+-   Test de dry-run (--dry-run) que liste lo que bajaría sin escribir.
+
+Criterios de aceptación
+
+-   sync library descarga originales a /data/{YYYY}/{MM} de forma
+    incremental.
+-   list-albums --shared-only muestra los álbumes compartidos.
+-   sync shared descarga álbumes compartidos en
+    /data/Compartidos/{Album}/{YYYY}/{MM}.
+-   Re-ejecutar no vuelve a bajar lo existente.
+-   Log claro en /logs/icloud_all.log y /logs/icloud_shared.log.
+-   Funciona en TrueNAS Scale vía Docker (sin paquetes del host).
+-   Permisos adecuados para acceso por SMB desde macOS (grupo con
+    escritura).
+
+Extras (opcionales)
+
+-   Métricas simples (tiempos, contadores) en JSON para
+    Prometheus/pickup futuro.
+-   Señal --since "YYYY-MM-DD" para arrancar histórico parcial.
+-   Auto-rotación de logs (tamaño/fecha).
+-   Modo --verify que valide integridad (hash) sin descargar.
+
+------------------------------------------------------------------------
+
+Ejemplos de uso (una vez construido)
+
+1)  Autenticación inicial (interactiva, para generar cookies):
+
+    docker run --rm -it   -v /mnt/Data_1/icloud_fotos/cookies:/cookies   -e TZ=Europe/Madrid icloudsync:latest   auth --apple-id "victor.garciah@icloud.com"
+
+2)  Sincronizar todo (para cron):
+
+    docker run --rm   -v /mnt/Data_1/icloud_fotos:/data   -v /mnt/Data_1/icloud_fotos/cookies:/cookies   -v /mnt/Data_1/icloud_fotos/logs:/logs   -e TZ=Europe/Madrid icloudsync:latest   sync all --out /data --cookies /cookies
+
+3)  Solo compartidos, acotando a últimos 100:
+
+    docker run --rm ... icloudsync:latest   sync shared --out /data/Compartidos --cookies /cookies --recent 100
+
+------------------------------------------------------------------------
+
+Construye este proyecto completo con la estructura, CLI, Dockerfile y
+ejemplos dados. Prioriza fiabilidad, idempotencia, buen logging y no
+interacción en cron (salvo renovar 2FA manualmente cuando caduque).

@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+
+# OS/macOS
+.DS_Store
+*.swp
+*.tmp
+
+# Project local
+logs/
+*.log
+.idea/
+.vscode/
+
