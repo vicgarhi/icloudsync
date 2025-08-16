@@ -49,3 +49,16 @@ Ejemplos
   `docker run --rm -v /mnt/.../Compartidos:/data -v /mnt/.../cookies:/cookies icloudsync:latest sync shared --out /data --cookies /cookies`
 - Álbumes no compartidos en subcarpetas por álbum:
   `docker run --rm -v /mnt/.../Albums:/data -v /mnt/.../cookies:/cookies icloudsync:latest sync albums --out /data --cookies /cookies`
+
+Cron (TrueNAS)
+- Usa el wrapper `run_all.sh` incluido para crear las carpetas necesarias y ejecutar `sync all` de una vez (library + shared + albums):
+
+  docker run --rm \
+    --entrypoint /usr/local/bin/run_all.sh \
+    -e TZ=Europe/Madrid \
+    -v /mnt/Data_1/icloud_fotos:/data \
+    -v /mnt/Data_1/icloud_fotos/cookies:/cookies \
+    -v /mnt/Data_1/icloud_fotos/logs:/logs \
+    ghcr.io/vicgarhi/icloudsync:latest
+
+  Esto creará `/data/Compartidos` y `/data/Albums` si no existen y volcará el log en `/logs/icloud_all.log`.

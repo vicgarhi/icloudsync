@@ -20,4 +20,7 @@ WORKDIR /appsrc
 RUN git clone --depth 1 https://github.com/vicgarhi/icloudsync.git /appsrc
 RUN pip install --no-cache-dir --no-deps .
 
+COPY run_all.sh /usr/local/bin/run_all.sh
+RUN chmod +x /usr/local/bin/run_all.sh
+
 ENTRYPOINT ["icloudsync"]
