@@ -1,0 +1,23 @@
+# Example values for TrueNAS SCALE with your real dataset paths
+
+image:
+  repository: ghcr.io/vicgarhi/icloudsync
+  tag: v0.1.0
+
+schedule: "0 3 * * *"  # 03:00 todos los días
+
+env:
+  TZ: Europe/Madrid
+  # Rellena con tu Apple ID antes de instalar
+  APPLE_ID: "tu@icloud.com"
+
+paths:
+  # Dataset raíz donde se escriben las fotos (creará /Compartidos y /Albums dentro)
+  data: "/mnt/Data_1/icloud_fotos"
+  # Carpeta persistente de cookies (generadas por 'icloudsync auth')
+  cookies: "/mnt/Data_1/icloud_fotos/cookies"
+  # Carpeta de logs para icloud_all.log
+  logs: "/mnt/Data_1/icloud_fotos/logs"
+
+resources: {}
+
