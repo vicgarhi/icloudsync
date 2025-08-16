@@ -1,0 +1,8 @@
+# No subir fotos ni datos sensibles
+data/
+cookies/
+keyring/
+logs/
+*.log
+__pycache__/
+*.pyc

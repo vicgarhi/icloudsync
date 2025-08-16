@@ -1,0 +1,16 @@
+services:
+  icloudsync:
+    build:
+      context: /mnt/Data_1/icloud_fotos
+      dockerfile: Dockerfile
+    image: icloudsync:latest
+    container_name: icloudsync
+    restart: "no"
+    environment:
+      - TZ=Europe/Madrid
+      - APPLE_ID=victorgarciahiguera@gmail.com
+    volumes:
+      - /mnt/Data_1/icloud_fotos/data:/data
+      - /mnt/Data_1/icloud_fotos/cookies:/cookies
+      - /mnt/Data_1/icloud_fotos/logs:/logs
+    command: ["sync", "--out", "/data", "--cookies", "/cookies"]

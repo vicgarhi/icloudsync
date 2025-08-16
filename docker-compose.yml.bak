@@ -1,0 +1,16 @@
+sudo tee /mnt/Data_1/icloud_fotos/docker-compose.yml > /dev/null <<'YAML'
+services:
+  icloudsync:
+    build:
+      context: https://github.com/vicgarhi/icloudsync.git
+    image: icloudsync:latest
+    container_name: icloudsync
+    restart: "no"
+    environment:
+      TZ: Europe/Madrid
+    volumes:
+      - /mnt/Data_1/icloud_fotos/data:/data
+      - /mnt/Data_1/icloud_fotos/cookies:/cookies
+      - /mnt/Data_1/icloud_fotos/logs:/logs
+    command: ["sync","all","--out","/data","--cookies","/cookies"]
+YAML
