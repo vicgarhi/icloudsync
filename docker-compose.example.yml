@@ -1,0 +1,13 @@
+services:
+  icloudsync:
+    image: ghcr.io/vicgarhi/icloudsync:latest
+    container_name: icloudsync
+    environment:
+      - TZ=Europe/Madrid
+    volumes:
+      - /mnt/Data_1/icloud_fotos:/data
+      - /mnt/Data_1/icloud_fotos/Compartidos:/shared
+      - /mnt/Data_1/icloud_fotos/cookies:/cookies
+      - /mnt/Data_1/icloud_fotos/logs:/logs
+    command: ["sync", "all", "--out", "/data", "--cookies", "/cookies"]
+    restart: "no"
