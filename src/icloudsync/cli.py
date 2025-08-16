@@ -193,6 +193,52 @@ def sync_shared(
     logging.info(f"sync shared -> {res}")
 
 
+@app.command(help="Sincroniza álbumes NO compartidos en carpetas por álbum")
+def sync_albums(
+    ctx: typer.Context,
+    out: str = typer.Option("/data/Albums", "--out"),
+    cookies: str = typer.Option("/cookies", "--cookies"),
+    recent: Optional[int] = typer.Option(None, "--recent"),
+    folder_template: str = typer.Option("{album}/{:%Y/%m}", "--folder-template"),
+    include: Optional[str] = typer.Option(None, "--include", help="Regex de inclusión"),
+    exclude: Optional[str] = typer.Option(None, "--exclude", help="Regex de exclusión"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+    chown: Optional[str] = typer.Option(None, "--chown"),
+):
+    cfg = _merge_common(ctx, {
+        "OUT_SHARED": out,  # reuse path field for this target
+        "COOKIES_DIR": cookies,
+        "RECENT": recent,
+        "FOLDER_TEMPLATE_SHARED": folder_template,
+        "DRY_RUN": dry_run,
+        "CHOWN": chown,
+    })
+    if not cfg.apple_id:
+        typer.echo("Debe proporcionar --apple-id/APPLE_ID via config/env.")
+        raise typer.Exit(code=1)
+    try:
+        ensure_noninteractive_session(cfg.apple_id, cfg.cookies_dir)
+    except AuthError as e:
+        typer.echo(str(e))
+        raise typer.Exit(code=2)
+
+    api = _get_api(cfg.apple_id, cfg.cookies_dir)
+    photos = ICloudPhotos(api)
+    state = StateDB(_make_state_path(cfg.cookies_dir))
+    assets = photos.iter_normal_albums(cfg.recent, include=include, exclude=exclude)
+    res = sync_assets(
+        assets=assets,
+        out_base=cfg.out_shared,
+        folder_template=cfg.folder_template_shared,
+        state=state,
+        concurrency=cfg.concurrency,
+        dry_run=cfg.dry_run,
+        umask=cfg.umask,
+        chown=cfg.chown,
+    )
+    logging.info(f"sync albums -> {res}")
+
+
 @app.command(name="sync", help="Sincroniza todo: library y luego shared")
 def sync_all(
     ctx: typer.Context,
@@ -226,6 +272,20 @@ def sync_all(
     sync_shared(
         ctx,
         out=shared_out,
+        cookies=cookies,
+        recent=recent,
+        folder_template=shared_folder_template,
+        include=None,
+        exclude=None,
+        dry_run=dry_run,
+        chown=chown,
+    )
+
+    # álbumes no compartidos dentro de /data/Albums
+    albums_out = os.path.join(out, "Albums")
+    sync_albums(
+        ctx,
+        out=albums_out,
         cookies=cookies,
         recent=recent,
         folder_template=shared_folder_template,
@@ -273,4 +333,3 @@ def doctor(
 
 def main() -> None:  # console_script entry
     app()
-

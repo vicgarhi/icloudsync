@@ -32,7 +32,7 @@ CLI
 - `icloudsync sync library --out /data --cookies /cookies [--recent N] [--concurrency N] [--folder-template "{:%Y/%m}"]`
 - `icloudsync sync shared --out /data/Compartidos --cookies /cookies [--include REGEX] [--exclude REGEX]`
 - `icloudsync sync albums --out /data/Albums --cookies /cookies [--include REGEX] [--exclude REGEX]`
-- `icloudsync sync all --out /data --cookies /cookies`
+- `icloudsync sync all --out /data --cookies /cookies` (ejecuta library, shared y albums)
 - `icloudsync list-albums [--shared-only]`
 - `icloudsync doctor`
 
